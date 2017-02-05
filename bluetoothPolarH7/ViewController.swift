@@ -6,14 +6,36 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     var centralManager:CBCentralManager!
     var connectingPeripheral:CBPeripheral!
     
-    required init?(coder aDecoder: NSCoder) {
+    @IBOutlet var label1: UILabel!
+    
+    let POLARH7_HRM_HEART_RATE_SERVICE_UUID = "180D"
+    let POLARH7_HRM_DEVICE_INFO_SERVICE_UUID = "180A"
+    
+    override func viewDidLoad() {
         
+        let heartRateServiceUUID = CBUUID(string: POLARH7_HRM_HEART_RATE_SERVICE_UUID)
+        let deviceInfoServiceUUID = CBUUID(string: POLARH7_HRM_DEVICE_INFO_SERVICE_UUID)
+        
+        let services = [heartRateServiceUUID, deviceInfoServiceUUID];
+        
+        //let centralManager = [[CBCentralManager alloc] initWithDelegate:self queue:nil];
+        let centralManager = CBCentralManager(delegate: self, queue: nil)
+        
+        centralManager.scanForPeripherals(withServices: services, options: nil)
+        
+        //[centralManager scanForPeripheralsWithServices:services options:nil];
+        self.centralManager = centralManager;
+        
+    }
+    
+    required init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
         centralManager = CBCentralManager(delegate: self, queue: DispatchQueue.main)
     }
     
-    func centralManagerDidUpdateState(_ central: CBCentralManager){
-        
+    
+    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        print("--- centralManagerDidUpdateState")
         switch central.state{
         case .poweredOn:
             print("poweredOn")
@@ -30,40 +52,56 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
                 centralManager.scanForPeripherals(withServices: serviceUUIDs as? [CBUUID], options: nil)
                 
             }
-            
-        default:
-            print(central.state)
+        case .poweredOff:
+            print("--- central state is powered off")
+        case .resetting:
+            print("--- central state is resetting")
+        case .unauthorized:
+            print("--- central state is unauthorized")
+        case .unknown:
+            print("--- central state is unknown")
+        case .unsupported:
+            print("--- central state is unsupported")
         }
     }
     
-    func centralManager(central: CBCentralManager!, didDiscoverPeripheral peripheral: CBPeripheral!, advertisementData: [NSObject : AnyObject]!, RSSI: NSNumber!) {
+    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
+        print("--- didDiscover peripheral")
         
-        connectingPeripheral = peripheral
-        connectingPeripheral.delegate = self
-        centralManager.connect(connectingPeripheral, options: nil)
+        if let localName = advertisementData[CBAdvertisementDataLocalNameKey] as? String{
+            print("--- found heart rate monitor named \(localName)")
+            self.centralManager.stopScan()
+            connectingPeripheral = peripheral
+            connectingPeripheral.delegate = self
+            centralManager.connect(connectingPeripheral, options: nil)
+        }else{
+            print("!!!--- can't unwrap advertisementData[CBAdvertisementDataLocalNameKey]")
+        }
     }
     
-    func centralManager(central: CBCentralManager!, didConnectPeripheral peripheral: CBPeripheral!) {
+    func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        print("--- didConnectPeripheral")
         
+        peripheral.delegate = self
         peripheral.discoverServices(nil)
+        print("--- peripheral state is \(peripheral.state)")
     }
     
-    func peripheral(peripheral: CBPeripheral!, didDiscoverServices error: NSError!) {
-        
+    func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if (error) != nil{
-            
+            print("!!!--- error in didDiscoverServices: \(error?.localizedDescription)")
         }
         else {
+            print("--- error in didDiscoverServices")
             for service in peripheral.services as [CBService]!{
                 peripheral.discoverCharacteristics(nil, for: service)
             }
         }
     }
     
-    func peripheral(peripheral: CBPeripheral!, didDiscoverCharacteristicsForService service: CBService!, error: NSError!) {
-        
+    func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         if (error) != nil{
-            
+            print("!!!--- error in didDiscoverCharacteristicsFor: \(error?.localizedDescription)")
         }
         else {
             
@@ -79,6 +117,11 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
                     case "2A38":
                         // Read body sensor location
                         print("Found a Body Sensor Location Characteristic")
+                        peripheral.readValue(for: characteristic)
+                        
+                    case "2A29":
+                        // Read body sensor location
+                        print("Found a HRM manufacturer name Characteristic")
                         peripheral.readValue(for: characteristic)
                         
                     case "2A39":
@@ -99,7 +142,7 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     }
     
     func update(heartRateData:Data){
-        
+        print("--- UPDATING ..")
         var buffer = [UInt8](repeating: 0x00, count: heartRateData.count)
         heartRateData.copyBytes(to: &buffer, count: buffer.count)
         
@@ -115,12 +158,15 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         
         if let actualBpm = bpm{
             print(actualBpm)
+            label1.text = ("\(actualBpm)")
         }else {
+            label1.text = ("\(bpm!)")
             print(bpm!)
         }
     }
     
-    @nonobjc func peripheral(peripheral: CBPeripheral!, didUpdateValueForCharacteristic characteristic: CBCharacteristic!, error: NSError!) {
+    func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+        print("--- didUpdateValueForCharacteristic")
         
         if (error) != nil{
             
@@ -130,7 +176,7 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
                 update(heartRateData:characteristic.value!)
                 
             default:
-                print()
+                print("--- something other than 2A37 uuid characteristic")
             }
         }
     }

@@ -1,5 +1,7 @@
 # Bluetooth Low Energy BTLE "hello world" iOS (Swift) with the Polar H7 Heart Rate Monitor
 
-Syntax conversion of gist from @nolili 's work here: https://gist.github.com/nolili/a583ea045dafafebb17f
+Compiles on Xcode 8.2, tested to work on iPhone 6s with iOS 10.2.1
 
-Compiles on Xcode 8.2
+![Demo](polarH7-iOS-Swift.gif)
+
+Credits @nolili
