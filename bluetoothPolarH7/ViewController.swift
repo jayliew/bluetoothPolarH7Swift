@@ -160,8 +160,8 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
             print(actualBpm)
             label1.text = ("\(actualBpm)")
         }else {
-            label1.text = ("\(bpm!)")
-            print(bpm!)
+            label1.text = "N/A"
+            print("--- bpm unavailable")
         }
     }
     
